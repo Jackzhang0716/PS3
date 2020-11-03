@@ -1,0 +1,184 @@
+---
+title: Forecasts of the Population of Voting Age, by Sex, for the United States, 2020
+  presidential election
+author: "Jingjie Zhang, Naifeng Zhang, Jiaxin Cheng, Yipeng Yin"
+date: "November 2, 2020"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, message = F, warning = F)
+```
+
+```{r}
+library(tidyverse)
+library(knitr)
+# Loading in the cleaned survey Data
+survey_data <- read_csv("survey_data.csv")
+
+# Loading in the cleaned census Data
+census_data <- read_csv("census_data.csv")
+```
+
+# Title of your Report
+
+"Forecasts of the Population of Voting Age, by Sex, for the United States, 2020 presidential election"
+
+## Name(s) of Author(s)
+
+Jingjie Zhang, Naifeng Zhang, Jiaxin Cheng, Yipeng Yin
+
+## Date 
+
+November 2, 2020
+
+\newpage
+
+# Data
+
+The American Community Survey (ACS) is a demographics survey program overseen by the U.S. Census Bureau. It routinely gathers information previously contained only in the long form of the decennial census, such as ancestry, citizenship, educational attainment, income, language proficiency, migration, disability, employment, and housing characteristics. These data are utilized by many public-sector, private-sector, and not-for-profit stakeholders to do various things including allocating funding, tracking shifting demographics, planning for emergencies, and learning about local communities. It is the largest household survey that the Census Bureau administers. We are using the 2018 5-year ACS as poststratification data. 
+
+\newpage
+
+# Model
+
+As the 2020 presidential election is closer, we want to predict the popular vote outcome of the 2020 American federal election (include citation). To do this, we use post-stratification technique to analyze and calculate the data. In the following sub-section, we will describe how this work as well as the detail information about the model.
+
+## Model Specifics
+
+We will use a logistic regression model as well as a simple linear regression model to model the proportion of voters who will support Donald Trump. We hypothesized that the probability of voting for Trump is only associated with age and sex, primarily and the rest are residual noise. As such, we added age and sex in our model to get the most out of it. 
+
+We choose age and sex as our variables. Age is a numeric variable and sex is a categorical variable. 
+
+The logistic regression model is:
+
+$$ \log{\frac{p_i}{1-p_i}} = \beta_0+\beta_1  x_{age,i} +\beta_2 x_{sex,i}$$
+Here,\
+$p$ represents the probability of voters who will vote for Donald Trump.\
+$\beta_0$ represents the intercept of the model, it is also the probability of female voting for Donald Trump at age 0.\
+$\beta_1$ is the coefficient for the age variable, for everyone one unit increase in age, we expect a $\beta_1$ increase in the log odds of the probability of voting for Donald Trump.\
+$\beta_2$ is the coefficient for the sex variable, for every male, we expect a $\beta_2$ increase in the log odds of the probability of voting for Donald Trump.\ 
+
+To contrast, we also used a simple linear regression model. The Simple linear regression model is:
+
+$$ y_i= \beta_0+\beta_1  x_{age,i} +\beta_2 x_{sex,i} +\epsilon_i$$
+Here,\
+$y$ represents the proportion of voters who will vote for Donald Trump.\
+$\beta_0$ represents the intercept of the model, and is the probability of female voting for Donald Trump at age 0.\
+$\beta_1$ is the coefficient for the age variablle, for everyone one unit increase in age, we expect a $\beta_1$ increase in the probability of voting for Donald Trump.\
+$\beta_2$ is the coefficient for the sex variable, for every male, we expect a $\beta_2$ increase in the probability of voting for Donald Trump.\
+
+```{r}
+unique(survey_data$gender)
+unique(census_data$sex)
+survey_data$sex <- rep(NA, nrow(survey_data))
+survey_data$sex[survey_data$gender == "Female"] <- "female"
+survey_data$sex[survey_data$gender == "Male"] <- "male"
+```
+
+```{r}
+# Creating the Model
+model <- glm(vote_trump ~ age + sex, 
+              data=survey_data, family = "binomial")
+
+model1 <- lm(vote_trump ~ age + sex, 
+             data = survey_data)
+
+kable(summary(model)$coefficients, digits=3, caption="Logistic regression output")
+kable(summary(model1)$coefficients, digits=3, caption="Linear regression output")
+```
+
+## Post-Stratification 
+
+Poststratification is a technique to estimate the proportion of voters who will vote for Donald Trump. We can essentially estimate $y$ for each cell by multi-level modelling and use demographics to explore the entire population. 
+
+The formula of Postratification is:
+
+$${\hat{y}}^{PS} = \frac{\sum{N_j \hat{y_j}}}{\sum{N_j }}$$
+Where $\hat{y_j}$ is the estimate in each cell and $N_j$ is the population size of the $j^{th}$ cell based off demographics.
+
+In this report, cells are defined by different ages and sex. We will estimate the proportion of votes in each age bin for male and female as we talked before. After that, we will use the formula of Poststratification to calculate the ${\hat{y}}^{PS}$. By the respective population size for each bin, we can weight each estimate and finally sum the values and divide that by the total population size.
+
+```{r}
+# Here I will perform the post-stratification calculation
+census_data$estimate <-
+  model %>%
+  predict(newdata = census_data, type = "response")
+
+census_data %>%
+  mutate(alp_predict_prop = estimate*n) %>%
+  summarise(alp_predict = sum(alp_predict_prop)/sum(n))
+
+# Here I will perform the post-stratification calculation
+census_data$estimate1 <-
+  model1 %>%
+  predict(newdata = census_data, type = "response")
+
+census_data %>%
+  mutate(alp_predict_prop = estimate1*n) %>%
+  summarise(alp_predict = sum(alp_predict_prop)/sum(n))
+
+```
+
+# Results
+
+Based on our post-stratification analysis for the models of voters like Donald Trump, the proportion of voters voting for Donald Trump to be 0.3740 for our logistic regression model and the proportion of voters voting for Donald Trump to be 0.3719 for our simple linear regression model.
+
+# Discussion
+
+## Model choice
+
+When the outcome is binary, researchers like psychologists commonly use nonlinear modeling strategies such as logit or probit. These strategies are often neither optimal nor justified when the goal is to estimate causal effects of experimental treatments. We believe in in econometric concepts and established statistical literature that linear regression is generally the best strategy to estimate causal effects of treatments on binary outcomes So, we used both linear regression and logistic regression to estimate covariate effects on our binary outcome.
+
+## Summry
+
+In this report, we have the interest to predict the popular vote outcome of the 2020 American federal election. Therefore, we use a logistic regression model and a simple linear regression model to analyze the data and use  Post-Stratification method to estimate the proportion of voters who will vote for Donald Trump. The results show the democratic party may win the election. There are some weaknesses, the model only has two variables, and we need to consider the age eligibility for voting. Moreover, popular votes might be different from the electoral votes. We should wait for the real result and compare the actual data with our results later.
+
+## Conclusion
+
+Base on our result, in the logistic regression model, the proportion of people support Donald Trump is 0.3740. In the simple linear regression model, the proportion of people support Donald Trump is 0.3719. Since in both models, the proportion is less than 0.5000, we predict that Donald Trump might lose and Joe Biden might be the next president of United States. Democratic Party will win in this election.
+
+## Weaknesses
+
+There are several weaknesses.  First, different states have a different policy for the age cut-off for eligibility to vote. We need to point it out. Next, we need to add more variables to increase the model prediction. For example, region, as we know the eligible age to vote is different in each state, we can add region as our variable to analysis it. Finally, getting popular votes does not win you the election. The popular voting is not the same as the electoral voting.
+
+## Next Steps
+
+The result of the actual election will come soon, we should compare our analysis with it and find the real data of the proportion of people of different ages and sex vote for Donald Trump. 
+
+# References
+
+Press, C., Finance, Y., &amp; Newsweek. (2020, October 30). New: Second Nationscape Data Set Release. Retrieved November 03, 2020, from https://www.voterstudygroup.org/publication/nationscape-data-set
+
+Team, M. (n.d.). U.S. CENSUS DATA FOR SOCIAL, ECONOMIC, AND HEALTH RESEARCH. Retrieved November 03, 2020, from https://usa.ipums.org/usa/index.shtml
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
